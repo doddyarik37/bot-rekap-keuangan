@@ -1,8 +1,16 @@
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 
-const TOKEN = '7881807901:AAEyCpZopNLeIVC_90cNoSFQmk_Ga8BBFZE';
-const SPREADSHEET_API = 'https://script.google.com/macros/s/AKfycbwIK2w02JzP-p9HCDaUVoOdNmEDffbrIirs0NFpLfPNALMLFfJ0-4m4PtF52tc1YucvrQ/exec';
+// --- PENTING ---
+// Ambil token dan URL dari Environment Variables di Railway
+// Jangan tulis token Anda di sini!
+const TOKEN = process.env.TELEGRAM_TOKEN;
+const SPREADSHEET_API = process.env.SPREADSHEET_API;
+
+if (!TOKEN || !SPREADSHEET_API) {
+  console.error('Error: Pastikan TELEGRAM_TOKEN dan SPREADSHEET_API sudah diatur di Environment Variables Railway.');
+  process.exit(1); // Hentikan bot jika variabel tidak ada
+}
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 const pendingData = {};
@@ -13,7 +21,7 @@ bot.onText(/^masuk (\d+)\s+(.+)\s+(cash|bank|ewallet)$/i, (msg, match) => {
   const [ , nominal, keterangan, sumber ] = match;
 
   pendingData[chatId] = { tipe: 'masuk', nominal, keterangan, sumber };
-  bot.sendMessage(chatId, '📸 Kirim foto struk jika ada, atau balas *tidak* bila tidak ada');
+  bot.sendMessage(chatId, '📸 Kirim foto struk jika ada, atau balas *tidak* bila tidak ada', { parse_mode: 'Markdown' });
 });
 
 // 🔹 Keluar
@@ -22,7 +30,7 @@ bot.onText(/^keluar (\d+)\s+(.+)\s+(cash|bank|ewallet)$/i, (msg, match) => {
   const [ , nominal, keterangan, sumber ] = match;
 
   pendingData[chatId] = { tipe: 'keluar', nominal, keterangan, sumber };
-  bot.sendMessage(chatId, '📸 Kirim foto struk jika ada, atau balas *tidak* bila tidak ada');
+  bot.sendMessage(chatId, '📸 Kirim foto struk jika ada, atau balas *tidak* bila tidak ada', { parse_mode: 'Markdown' });
 });
 
 // 🔸 Jika tidak ada foto
@@ -31,11 +39,15 @@ bot.onText(/^tidak$/i, async msg => {
   const data = pendingData[chatId];
   if (!data) return;
 
-  await axios.post(SPREADSHEET_API, data);
-  delete pendingData[chatId];
-
-  bot.sendMessage(chatId, '✅ Transaksi berhasil dicatat.');
-  await tampilkanSaldo(chatId);
+  try {
+    await axios.post(SPREADSHEET_API, data);
+    delete pendingData[chatId];
+    bot.sendMessage(chatId, '✅ Transaksi berhasil dicatat.');
+    await tampilkanSaldo(chatId);
+  } catch (error) {
+    console.error('Gagal kirim data (tanpa foto):', error.message);
+    bot.sendMessage(chatId, '❌ Gagal menyimpan data. Coba lagi.');
+  }
 });
 
 // 🔸 Jika ada foto struk
@@ -44,13 +56,17 @@ bot.on('photo', async msg => {
   const data = pendingData[chatId];
   if (!data) return;
 
-  const fileId = msg.photo[msg.photo.length - 1].file_id;
-  const fileUrl = await bot.getFileLink(fileId);
-  await axios.post(SPREADSHEET_API, { ...data, bukti: fileUrl });
-  delete pendingData[chatId];
-
-  bot.sendMessage(chatId, '✅ Transaksi dan struk berhasil dicatat.');
-  await tampilkanSaldo(chatId);
+  try {
+    const fileId = msg.photo[msg.photo.length - 1].file_id;
+    const fileUrl = await bot.getFileLink(fileId);
+    await axios.post(SPREADSHEET_API, { ...data, bukti: fileUrl });
+    delete pendingData[chatId];
+    bot.sendMessage(chatId, '✅ Transaksi dan struk berhasil dicatat.');
+    await tampilkanSaldo(chatId);
+  } catch (error) {
+    console.error('Gagal kirim data (dengan foto):', error.message);
+    bot.sendMessage(chatId, '❌ Gagal menyimpan data. Coba lagi.');
+  }
 });
 
 // 🔄 Transfer antar dompet
@@ -65,9 +81,14 @@ bot.onText(/^tf (\d+)\s+(cash|bank|ewallet)\s+(cash|bank|ewallet)$/i, async (msg
     tujuan
   };
 
-  await axios.post(SPREADSHEET_API, data);
-  bot.sendMessage(chatId, '🔁 Transfer antar dompet berhasil dicatat.');
-  await tampilkanSaldo(chatId);
+  try {
+    await axios.post(SPREADSHEET_API, data);
+    bot.sendMessage(chatId, '🔁 Transfer antar dompet berhasil dicatat.');
+    await tampilkanSaldo(chatId);
+  } catch (error) {
+    console.error('Gagal kirim data (transfer):', error.message);
+    bot.sendMessage(chatId, '❌ Gagal menyimpan data transfer. Coba lagi.');
+  }
 });
 
 // 📊 Rekap total masuk & keluar
@@ -78,11 +99,12 @@ bot.onText(/^rekap$/i, async msg => {
     const d = res.data;
     bot.sendMessage(chatId,
       `📊 *Rekap Transaksi:*\n` +
-      `🟢 Total Masuk: Rp${d.totalMasuk.toLocaleString()}\n` +
-      `🔴 Total Keluar: Rp${d.totalKeluar.toLocaleString()}`,
+      `🟢 Total Masuk: Rp${d.totalMasuk.toLocaleString('id-ID')}\n` +
+      `🔴 Total Keluar: Rp${d.totalKeluar.toLocaleString('id-ID')}`,
       { parse_mode: 'Markdown' }
     );
   } catch (e) {
+    console.error('Gagal ambil rekap:', e.message);
     bot.sendMessage(chatId, '❌ Gagal mengambil data rekap.');
   }
 });
@@ -105,10 +127,10 @@ async function tampilkanSaldo(chatId) {
 
     bot.sendMessage(chatId,
       `💰 *Saldo Saat Ini:*\n` +
-      `💵 Rp${d.saldoAkhir.toLocaleString()}\n\n` +
-      `📦 Cash: Rp${saldoCash.toLocaleString()}\n` +
-      `🏦 Bank: Rp${saldoBank.toLocaleString()}\n` +
-      `📱 Ewallet: Rp${saldoEwallet.toLocaleString()}`,
+      `💵 Rp${d.saldoAkhir.toLocaleString('id-ID')}\n\n` +
+      `📦 Cash: Rp${saldoCash.toLocaleString('id-ID')}\n` +
+      `🏦 Bank: Rp${saldoBank.toLocaleString('id-ID')}\n` +
+      `📱 Ewallet: Rp${saldoEwallet.toLocaleString('id-ID')}`,
       { parse_mode: 'Markdown' }
     );
   } catch (e) {
@@ -116,3 +138,5 @@ async function tampilkanSaldo(chatId) {
     bot.sendMessage(chatId, '❌ Gagal mengambil saldo terkini.');
   }
 }
+
+console.log('Bot catatan keuangan berhasil dijalankan...');
