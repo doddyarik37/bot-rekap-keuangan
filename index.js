@@ -1,8 +1,8 @@
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 
-const TOKEN = '7881807901:AAEyCpZopNLeIVC_90cNoSFQmk_Ga8BBFZE';
-const SPREADSHEET_API = 'https://script.google.com/macros/s/AKfycbwIK2w02JzP-p9HCDaUVoOdNmEDffbrIirs0NFpLfPNALMLFfJ0-4m4PtF52tc1YucvrQ/exec';
+const TOKEN = process.env.TOKEN;
+const SPREADSHEET_API = process.env.SPREADSHEET_API;
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 const pendingData = {};
