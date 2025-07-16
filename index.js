@@ -73,13 +73,15 @@ bot.onText(/^#rekap$/i, async msg => {
   try {
     const res = await axios.get(SPREADSHEET_API);
     const d = res.data;
-    bot.sendMessage(chatId,
-      `📊 *Rekap Keuangan Saat Ini:*\n` +
-      `💰 Saldo: Rp${d.saldoAkhir.toLocaleString()}\n` +
-      `🟢 Masuk: Rp${d.totalMasuk.toLocaleString()}\n` +
-      `🔴 Keluar: Rp${d.totalKeluar.toLocaleString()}`,
-      { parse_mode: 'Markdown' }
-    );
+    bot.sendMessage(chatId, '✅ Transaksi berhasil dicatat.');
+
+	bot.sendMessage(chatId,
+	`📊 *Saldo Saat Ini:*\n` +
+	`💰 Saldo: Rp${d.saldoAkhir.toLocaleString()}\n` +
+	`🟢 Masuk: Rp${d.totalMasuk.toLocaleString()}\n` +
+	`🔴 Keluar: Rp${d.totalKeluar.toLocaleString()}`,
+	{ parse_mode: 'Markdown' }
+	);
   } catch (e) {
     bot.sendMessage(chatId, '❌ Gagal mengambil data rekap.');
   }
@@ -125,13 +127,16 @@ bot.onText(/^#tf (\d+)\s+(cash|bank|ewallet)\s+(cash|bank|ewallet)$/i, async (ms
     const res = await axios.get(SPREADSHEET_API);
     const d = res.data;
 
-    bot.sendMessage(chatId,
-      `🔄 Transfer Rp${nominal.toLocaleString()} dari *${sumber}* ke *${tujuan}* berhasil.\n\n` +
-      `📊 *Saldo Sekarang:*\n` +
-      `💼 ${sumber}: Rp${(d.saldoPerSumber[sumber] || 0).toLocaleString()}\n` +
-      `💼 ${tujuan}: Rp${(d.saldoPerSumber[tujuan] || 0).toLocaleString()}`,
-      { parse_mode: 'Markdown' }
-    );
+    bot.sendMessage(chatId, '✅ Transaksi berhasil dicatat.');
+
+	bot.sendMessage(chatId,
+	`📊 *Saldo Saat Ini:*\n` +
+	`💰 Saldo: Rp${d.saldoAkhir.toLocaleString()}\n` +
+	`🟢 Masuk: Rp${d.totalMasuk.toLocaleString()}\n` +
+	`🔴 Keluar: Rp${d.totalKeluar.toLocaleString()}`,
+	{ parse_mode: 'Markdown' }
+	);
+
   } catch (e) {
     bot.sendMessage(chatId, '❌ Gagal mencatat transfer atau mengambil saldo.');
   }
