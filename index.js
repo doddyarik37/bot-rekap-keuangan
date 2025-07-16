@@ -35,7 +35,7 @@ bot.onText(/^tidak$/i, async msg => {
   delete pendingData[chatId];
 
   bot.sendMessage(chatId, '✅ Transaksi berhasil dicatat.');
-  tampilkanSaldo(chatId);
+  await tampilkanSaldo(chatId);
 });
 
 // 🔸 Jika ada foto struk
@@ -50,7 +50,7 @@ bot.on('photo', async msg => {
   delete pendingData[chatId];
 
   bot.sendMessage(chatId, '✅ Transaksi dan struk berhasil dicatat.');
-  tampilkanSaldo(chatId);
+  await tampilkanSaldo(chatId);
 });
 
 // 🔄 Transfer antar dompet
@@ -67,7 +67,7 @@ bot.onText(/^tf (\d+)\s+(cash|bank|ewallet)\s+(cash|bank|ewallet)$/i, async (msg
 
   await axios.post(SPREADSHEET_API, data);
   bot.sendMessage(chatId, '🔁 Transfer antar dompet berhasil dicatat.');
-  tampilkanSaldo(chatId);
+  await tampilkanSaldo(chatId);
 });
 
 // 📊 Rekap total masuk & keluar
@@ -90,7 +90,7 @@ bot.onText(/^rekap$/i, async msg => {
 // 💰 Saldo total & per sumber
 bot.onText(/^saldo$/i, async msg => {
   const chatId = msg.chat.id;
-  tampilkanSaldo(chatId);
+  await tampilkanSaldo(chatId);
 });
 
 // 🔧 Fungsi tampilkan saldo (dipakai berulang)
@@ -98,6 +98,7 @@ async function tampilkanSaldo(chatId) {
   try {
     const res = await axios.get(SPREADSHEET_API);
     const d = res.data;
+
     const saldoCash = d.saldoPerSumber.cash || 0;
     const saldoBank = d.saldoPerSumber.bank || 0;
     const saldoEwallet = d.saldoPerSumber.ewallet || 0;
@@ -111,6 +112,7 @@ async function tampilkanSaldo(chatId) {
       { parse_mode: 'Markdown' }
     );
   } catch (e) {
+    console.error('Gagal ambil saldo:', e.message);
     bot.sendMessage(chatId, '❌ Gagal mengambil saldo terkini.');
   }
 }
