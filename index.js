@@ -12,7 +12,7 @@ bot.onText(/^masuk (\d+)\s+(.+)\s+(cash|bank|ewallet)$/i, (msg, match) => {
   const chatId = msg.chat.id;
   const [ , nominal, keterangan, sumber ] = match;
 
-  pendingData[chatId] = { tipe: 'dapat', nominal, keterangan, sumber };
+  pendingData[chatId] = { tipe: 'masuk', nominal, keterangan, sumber };
   bot.sendMessage(chatId, '📸 Kirim foto struk jika ada, atau balas *tidak* bila tidak ada');
 });
 
@@ -21,7 +21,7 @@ bot.onText(/^keluar (\d+)\s+(.+)\s+(cash|bank|ewallet)$/i, (msg, match) => {
   const chatId = msg.chat.id;
   const [ , nominal, keterangan, sumber ] = match;
 
-  pendingData[chatId] = { tipe: 'bayar', nominal, keterangan, sumber };
+  pendingData[chatId] = { tipe: 'keluar', nominal, keterangan, sumber };
   bot.sendMessage(chatId, '📸 Kirim foto struk jika ada, atau balas *tidak* bila tidak ada');
 });
 
