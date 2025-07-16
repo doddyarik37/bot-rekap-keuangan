@@ -91,23 +91,44 @@ bot.onText(/^tf (\d+)\s+(cash|bank|ewallet)\s+(cash|bank|ewallet)$/i, async (msg
   }
 });
 
-// 📊 Rekap total masuk & keluar
-bot.onText(/^rekap$/i, async msg => {
+// 📊 Rekap total masuk & keluar (umum atau per sumber)
+bot.onText(/^rekap(?:\s+(cash|bank|ewallet))?$/i, async (msg, match) => {
   const chatId = msg.chat.id;
+  const sumber = match[1]; // Akan berisi 'cash', 'bank', 'ewallet', atau undefined
+
   try {
-    const res = await axios.get(SPREADSHEET_API);
+    let url = SPREADSHEET_API;
+    if (sumber) {
+      // Menambahkan parameter sumber ke URL jika ada
+      url += `?sumber=${sumber}`;
+    }
+
+    const res = await axios.get(url);
     const d = res.data;
-    bot.sendMessage(chatId,
-      `📊 *Rekap Transaksi:*\n` +
-      `🟢 Total Masuk: Rp${d.totalMasuk.toLocaleString('id-ID')}\n` +
-      `🔴 Total Keluar: Rp${d.totalKeluar.toLocaleString('id-ID')}`,
-      { parse_mode: 'Markdown' }
-    );
+    let replyText = '';
+
+    if (sumber) {
+      // Balasan untuk rekap spesifik per sumber
+      const namaSumber = sumber.charAt(0).toUpperCase() + sumber.slice(1);
+      replyText = `📊 *Rekap Sumber: ${namaSumber}*\n` +
+                  `🟢 Total Masuk: Rp${d.totalMasuk.toLocaleString('id-ID')}\n` +
+                  `🔴 Total Keluar: Rp${d.totalKeluar.toLocaleString('id-ID')}\n` +
+                  `💰 *Saldo Akhir ${namaSumber}: Rp${d.saldoAkhir.toLocaleString('id-ID')}*`;
+    } else {
+      // Balasan untuk rekap umum (seperti sebelumnya)
+      replyText = `📊 *Rekap Transaksi Total:*\n` +
+                  `🟢 Total Masuk: Rp${d.totalMasuk.toLocaleString('id-ID')}\n` +
+                  `🔴 Total Keluar: Rp${d.totalKeluar.toLocaleString('id-ID')}`;
+    }
+
+    bot.sendMessage(chatId, replyText, { parse_mode: 'Markdown' });
+
   } catch (e) {
     console.error('Gagal ambil rekap:', e.message);
     bot.sendMessage(chatId, '❌ Gagal mengambil data rekap.');
   }
 });
+
 
 // 💰 Saldo total & per sumber
 bot.onText(/^saldo$/i, async msg => {
