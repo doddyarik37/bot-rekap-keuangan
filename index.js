@@ -16,9 +16,9 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 const pendingData = {};
 
 // --- BARU: Perintah untuk "membangunkan" bot ---
-bot.onText(/^\/start$/, (msg) => {
+bot.onText(/^\/lur$/, (msg) => {
   const chatId = msg.chat.id;
-  bot.sendMessage(chatId, '👋 Bot aktif dan siap mencatat!');
+  bot.sendMessage(chatId, 'Wett! 👋');
 });
 
 
