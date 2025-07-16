@@ -21,7 +21,7 @@ bot.onText(/^masuk (\d+)\s+(.+)\s+(cash|bank|ewallet)$/i, (msg, match) => {
   const [ , nominal, keterangan, sumber ] = match;
 
   pendingData[chatId] = { tipe: 'masuk', nominal, keterangan, sumber };
-  bot.sendMessage(chatId, '📸 Kirim foto struk jika ada, atau balas *tidak* bila tidak ada', { parse_mode: 'Markdown' });
+  bot.sendMessage(chatId, '📸 Kirim foto struk jika ada, atau balas *tidak* jika tidak ada', { parse_mode: 'Markdown' });
 });
 
 // 🔹 Keluar
@@ -30,7 +30,7 @@ bot.onText(/^keluar (\d+)\s+(.+)\s+(cash|bank|ewallet)$/i, (msg, match) => {
   const [ , nominal, keterangan, sumber ] = match;
 
   pendingData[chatId] = { tipe: 'keluar', nominal, keterangan, sumber };
-  bot.sendMessage(chatId, '📸 Kirim foto struk jika ada, atau balas *tidak* bila tidak ada', { parse_mode: 'Markdown' });
+  bot.sendMessage(chatId, '📸 Kirim foto struk jika ada, atau balas *tidak* jika tidak ada', { parse_mode: 'Markdown' });
 });
 
 // 🔸 Jika tidak ada foto
@@ -42,7 +42,7 @@ bot.onText(/^tidak$/i, async msg => {
   try {
     await axios.post(SPREADSHEET_API, data);
     delete pendingData[chatId];
-    bot.sendMessage(chatId, '✅ Transaksi berhasil dicatat.');
+    bot.sendMessage(chatId, '✅ Transaksi tanpa struk berhasil dicatat.');
     await tampilkanSaldo(chatId);
   } catch (error) {
     console.error('Gagal kirim data (tanpa foto):', error.message);
@@ -69,7 +69,7 @@ bot.on('photo', async msg => {
   }
 });
 
-// 🔄 Transfer antar dompet
+// 🔄 Transfer antar rekening
 bot.onText(/^tf (\d+)\s+(cash|bank|ewallet)\s+(cash|bank|ewallet)$/i, async (msg, match) => {
   const chatId = msg.chat.id;
   const [ , nominal, sumber, tujuan ] = match;
@@ -83,7 +83,7 @@ bot.onText(/^tf (\d+)\s+(cash|bank|ewallet)\s+(cash|bank|ewallet)$/i, async (msg
 
   try {
     await axios.post(SPREADSHEET_API, data);
-    bot.sendMessage(chatId, '🔁 Transfer antar dompet berhasil dicatat.');
+    bot.sendMessage(chatId, '🔁 Transfer antar rekening berhasil dicatat.');
     await tampilkanSaldo(chatId);
   } catch (error) {
     console.error('Gagal kirim data (transfer):', error.message);
@@ -111,12 +111,13 @@ bot.onText(/^rekap(?:\s+(cash|bank|ewallet))?$/i, async (msg, match) => {
       // Balasan untuk rekap spesifik per sumber
       const namaSumber = sumber.charAt(0).toUpperCase() + sumber.slice(1);
       replyText = `📊 *Rekap Sumber: ${namaSumber}*\n` +
+				  `💰 *Saldo : Rp${d.saldoAkhir.toLocaleString('id-ID')}*\n` +
                   `🟢 Total Masuk: Rp${d.totalMasuk.toLocaleString('id-ID')}\n` +
-                  `🔴 Total Keluar: Rp${d.totalKeluar.toLocaleString('id-ID')}\n` +
-                  `💰 *Saldo Akhir ${namaSumber}: Rp${d.saldoAkhir.toLocaleString('id-ID')}*`;
+                  `🔴 Total Keluar: Rp${d.totalKeluar.toLocaleString('id-ID')}\n`;
     } else {
       // Balasan untuk rekap umum (seperti sebelumnya)
       replyText = `📊 *Rekap Transaksi Total:*\n` +
+				  `💰 *Saldo : Rp${d.saldoAkhir.toLocaleString('id-ID')}*\n` +
                   `🟢 Total Masuk: Rp${d.totalMasuk.toLocaleString('id-ID')}\n` +
                   `🔴 Total Keluar: Rp${d.totalKeluar.toLocaleString('id-ID')}`;
     }
