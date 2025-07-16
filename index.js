@@ -40,10 +40,11 @@ bot.onText(/^tidak$/i, async msg => {
     const res = await axios.get(SPREADSHEET_API);
     const d = res.data;
     bot.sendMessage(chatId,
-      `📊 *Saldo Saat Ini:*\n` +
-      `💰 Saldo: Rp${d.saldoAkhir.toLocaleString()}\n` +
-      `🟢 Masuk: Rp${d.totalMasuk.toLocaleString()}\n` +
-      `🔴 Keluar: Rp${d.totalKeluar.toLocaleString()}`,
+      `💰 *Saldo Saat Ini:*\n` +
+      `💵 Rp${d.saldoAkhir.toLocaleString()}\n\n` +
+      `📦 Cash: Rp${saldoCash.toLocaleString()}\n` +
+      `🏦 Bank: Rp${saldoBank.toLocaleString()}\n` +
+      `📱 Ewallet: Rp${saldoEwallet.toLocaleString()}`,
       { parse_mode: 'Markdown' }
     );
   } catch (e) {
@@ -68,10 +69,11 @@ bot.on('photo', async msg => {
     const res = await axios.get(SPREADSHEET_API);
     const d = res.data;
     bot.sendMessage(chatId,
-      `📊 *Saldo Saat Ini:*\n` +
-      `💰 Saldo: Rp${d.saldoAkhir.toLocaleString()}\n` +
-      `🟢 Masuk: Rp${d.totalMasuk.toLocaleString()}\n` +
-      `🔴 Keluar: Rp${d.totalKeluar.toLocaleString()}`,
+      `💰 *Saldo Saat Ini:*\n` +
+      `💵 Rp${d.saldoAkhir.toLocaleString()}\n\n` +
+      `📦 Cash: Rp${saldoCash.toLocaleString()}\n` +
+      `🏦 Bank: Rp${saldoBank.toLocaleString()}\n` +
+      `📱 Ewallet: Rp${saldoEwallet.toLocaleString()}`,
       { parse_mode: 'Markdown' }
     );
   } catch (e) {
@@ -145,10 +147,11 @@ bot.onText(/^tf (\d+)\s+(cash|bank|ewallet)\s+(cash|bank|ewallet)$/i, async (msg
     const res = await axios.get(SPREADSHEET_API);
     const d = res.data;
     bot.sendMessage(chatId,
-      `📊 *Saldo Saat Ini:*\n` +
-      `💰 Saldo: Rp${d.saldoAkhir.toLocaleString()}\n` +
-      `🟢 Masuk: Rp${d.totalMasuk.toLocaleString()}\n` +
-      `🔴 Keluar: Rp${d.totalKeluar.toLocaleString()}`,
+      `💰 *Saldo Saat Ini:*\n` +
+      `💵 Rp${d.saldoAkhir.toLocaleString()}\n\n` +
+      `📦 Cash: Rp${saldoCash.toLocaleString()}\n` +
+      `🏦 Bank: Rp${saldoBank.toLocaleString()}\n` +
+      `📱 Ewallet: Rp${saldoEwallet.toLocaleString()}`,
       { parse_mode: 'Markdown' }
     );
   } catch (e) {
