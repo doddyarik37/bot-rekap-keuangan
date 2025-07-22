@@ -17,6 +17,39 @@ bot.onText(/^\/lur$/, (msg) => {
   bot.sendMessage(msg.chat.id, 'Wett! 👋');
 });
 
+// --- BARU: Perintah untuk menampilkan daftar perintah ---
+bot.onText(/^\/?perintah$/, (msg) => {
+    const chatId = msg.chat.id;
+    const helpText = `
+*Daftar Perintah Bot Keuangan*
+
+*Pencatatan Dasar:*
+• \`masuk [nominal] [ket] [sumber]\`
+  _Contoh: \`masuk 50000 Gaji bank\`_
+• \`keluar [nominal] [ket] [sumber]\`
+  _Contoh: \`keluar 25000 Makan siang ewallet\`_
+• \`tf [nominal] [dari] [ke]\`
+  _Contoh: \`tf 100000 bank cash\`_
+
+*Melihat Data:*
+• \`saldo\` - Menampilkan ringkasan saldo total & per sumber.
+• \`rekap\` - Menampilkan daftar semua transaksi dengan nomor barisnya.
+• \`rekap [sumber]\` - Menampilkan daftar transaksi per sumber (cash/bank/ewallet).
+
+*Mengubah Data:*
+(Gunakan nomor baris dari hasil \`rekap\`)
+• \`hapus [no. baris]\`
+  _Contoh: \`hapus 5\`_
+• \`edit [no. baris] [nominal] [ket] [sumber]\`
+  _Contoh: \`edit 5 30000 Makan malam cash\`_
+
+*Lainnya:*
+• \`/lur\` - Memastikan bot aktif.
+    `;
+    bot.sendMessage(chatId, helpText, { parse_mode: 'Markdown' });
+});
+
+
 // 🔹 Masuk
 bot.onText(/^masuk (\d+)\s+(.+)\s+(cash|bank|ewallet)$/i, (msg, match) => {
   const chatId = msg.chat.id;
