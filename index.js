@@ -63,17 +63,18 @@ bot.onText(/^\/?perintah$/, (msg) => {
 • \`edit [no. baris] [nominal] [ket] [sumber]\`
 
 *Pengingat:*
-• \`/ingatkan saya\` - Mengaktifkan pengingat harian jam 9 malam.
-• \`/hentikan ingatan\` - Menonaktifkan pengingat.
+• \`/ingatkansaya\` - Mengaktifkan pengingat harian jam 9 malam.
+• \`/hentikaningatan\` - Menonaktifkan pengingat.
 
 *Lainnya:*
 • \`/lur\` - Memastikan bot aktif.
+• \`/perintah\` - Daftar perintah bot keuangan.
     `;
     bot.sendMessage(chatId, helpText, { parse_mode: 'Markdown' });
 });
 
 // --- Perintah Pengingat ---
-bot.onText(/^\/ingatkan saya$/, async (msg) => {
+bot.onText(/^\/ingatkansaya$/, async (msg) => {
     try {
         await axios.post(SPREADSHEET_API, { action: 'manage_reminder', chatId: msg.chat.id, subscribe: true });
         bot.sendMessage(msg.chat.id, '✅ Oke! Pengingat harian jam 9 malam telah diaktifkan.');
@@ -82,7 +83,7 @@ bot.onText(/^\/ingatkan saya$/, async (msg) => {
     }
 });
 
-bot.onText(/^\/hentikan ingatan$/, async (msg) => {
+bot.onText(/^\/hentikaningatan$/, async (msg) => {
     try {
         await axios.post(SPREADSHEET_API, { action: 'manage_reminder', chatId: msg.chat.id, subscribe: false });
         bot.sendMessage(msg.chat.id, '✅ Siap! Pengingat harian telah dinonaktifkan.');
