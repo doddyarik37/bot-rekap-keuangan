@@ -1,5 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
+const cron = require('node-cron');
 
 const TOKEN = process.env.TELEGRAM_TOKEN;
 const SPREADSHEET_API = process.env.SPREADSHEET_API;
@@ -12,12 +13,25 @@ if (!TOKEN || !SPREADSHEET_API) {
 const bot = new TelegramBot(TOKEN, { polling: true });
 const pendingData = {};
 
-// --- Perintah untuk "membangunkan" bot ---
-bot.onText(/^\/lur$/, (msg) => {
-  bot.sendMessage(msg.chat.id, 'Wett! 👋');
+// --- Jadwal Pengingat Harian (Setiap jam 9 malam waktu Jakarta) ---
+cron.schedule('0 21 * * *', async () => {
+  console.log('Menjalankan tugas pengingat harian...');
+  try {
+    const res = await axios.get(`${SPREADSHEET_API}?get=users`);
+    const users = res.data.users;
+    if (users && users.length > 0) {
+      users.forEach(chatId => {
+        bot.sendMessage(chatId, '🔔 Pengingat! Jangan lupa catat transaksi keuanganmu hari ini ya!');
+      });
+    }
+  } catch (e) {
+    console.error('Gagal menjalankan tugas pengingat:', e.message);
+  }
+}, {
+  timezone: "Asia/Jakarta"
 });
 
-// --- BARU: Perintah untuk menampilkan daftar perintah ---
+// --- Perintah Bantuan ---
 bot.onText(/^\/?perintah$/, (msg) => {
     const chatId = msg.chat.id;
     const helpText = `
@@ -25,23 +39,32 @@ bot.onText(/^\/?perintah$/, (msg) => {
 
 *Pencatatan Dasar:*
 • \`masuk [nominal] [ket] [sumber]\`
-  _Contoh: \`masuk 50000 Gaji bank\`_
 • \`keluar [nominal] [ket] [sumber]\`
-  _Contoh: \`keluar 25000 Makan siang ewallet\`_
 • \`tf [nominal] [dari] [ke]\`
-  _Contoh: \`tf 100000 bank cash\`_
+
+*Utang & Piutang:*
+• \`utang [nominal] [dari siapa] [ket]\`
+  _(Uang masuk ke 'cash' secara default)_
+• \`piutang [nominal] [ke siapa] [ket]\`
+  _(Uang keluar dari 'cash' secara default)_
+• \`bayar utang [ID] [nominal]\`
+• \`terima piutang [ID] [nominal]\`
 
 *Melihat Data:*
-• \`saldo\` - Menampilkan ringkasan saldo total & per sumber.
-• \`rekap\` - Menampilkan daftar semua transaksi dengan nomor barisnya.
-• \`rekap [sumber]\` - Menampilkan daftar transaksi per sumber (cash/bank/ewallet).
+• \`saldo\` - Ringkasan saldo total & per sumber.
+• \`rekap\` - Daftar semua transaksi (masuk/keluar/tf).
+• \`rekap [sumber]\` - Daftar transaksi per sumber.
+• \`rekap utang\` - Daftar utang yang belum lunas.
+• \`rekap piutang\` - Daftar piutang yang belum lunas.
 
 *Mengubah Data:*
 (Gunakan nomor baris dari hasil \`rekap\`)
 • \`hapus [no. baris]\`
-  _Contoh: \`hapus 5\`_
 • \`edit [no. baris] [nominal] [ket] [sumber]\`
-  _Contoh: \`edit 5 30000 Makan malam cash\`_
+
+*Pengingat:*
+• \`/ingatkan saya\` - Mengaktifkan pengingat harian jam 9 malam.
+• \`/hentikan ingatan\` - Menonaktifkan pengingat.
 
 *Lainnya:*
 • \`/lur\` - Memastikan bot aktif.
@@ -49,8 +72,121 @@ bot.onText(/^\/?perintah$/, (msg) => {
     bot.sendMessage(chatId, helpText, { parse_mode: 'Markdown' });
 });
 
+// --- Perintah Pengingat ---
+bot.onText(/^\/ingatkan saya$/, async (msg) => {
+    try {
+        await axios.post(SPREADSHEET_API, { action: 'manage_reminder', chatId: msg.chat.id, subscribe: true });
+        bot.sendMessage(msg.chat.id, '✅ Oke! Pengingat harian jam 9 malam telah diaktifkan.');
+    } catch (e) {
+        bot.sendMessage(msg.chat.id, '❌ Gagal mengaktifkan pengingat.');
+    }
+});
 
-// 🔹 Masuk
+bot.onText(/^\/hentikan ingatan$/, async (msg) => {
+    try {
+        await axios.post(SPREADSHEET_API, { action: 'manage_reminder', chatId: msg.chat.id, subscribe: false });
+        bot.sendMessage(msg.chat.id, '✅ Siap! Pengingat harian telah dinonaktifkan.');
+    } catch (e) {
+        bot.sendMessage(msg.chat.id, '❌ Gagal menonaktifkan pengingat.');
+    }
+});
+
+
+// --- Perintah Utang & Piutang ---
+bot.onText(/^utang (\d+) (.+) (.+)$/i, async (msg, match) => {
+    const [ , nominal, pihak, keterangan ] = match;
+    const payload = { action: 'add_utang_piutang', tipe: 'Utang', nominal, pihak, keterangan };
+    try {
+        await axios.post(SPREADSHEET_API, payload);
+        bot.sendMessage(msg.chat.id, `✅ Utang baru dari *${pihak}* sebesar Rp${parseInt(nominal).toLocaleString('id-ID')} berhasil dicatat. Saldo 'cash' bertambah.`);
+        await tampilkanSaldo(msg.chat.id);
+    } catch (e) {
+        bot.sendMessage(msg.chat.id, '❌ Gagal mencatat utang.');
+    }
+});
+
+bot.onText(/^piutang (\d+) (.+) (.+)$/i, async (msg, match) => {
+    const [ , nominal, pihak, keterangan ] = match;
+    const payload = { action: 'add_utang_piutang', tipe: 'Piutang', nominal, pihak, keterangan };
+    try {
+        await axios.post(SPREADSHEET_API, payload);
+        bot.sendMessage(msg.chat.id, `✅ Piutang baru kepada *${pihak}* sebesar Rp${parseInt(nominal).toLocaleString('id-ID')} berhasil dicatat. Saldo 'cash' berkurang.`);
+        await tampilkanSaldo(msg.chat.id);
+    } catch (e) {
+        bot.sendMessage(msg.chat.id, '❌ Gagal mencatat piutang.');
+    }
+});
+
+bot.onText(/^bayar utang (\d+) (\d+)$/i, async (msg, match) => {
+    const [ , id, nominal ] = match;
+    const payload = { action: 'update_utang_piutang', tipe: 'bayar utang', id, nominal };
+    try {
+        const res = await axios.post(SPREADSHEET_API, payload);
+        bot.sendMessage(msg.chat.id, `✅ Pembayaran utang (ID: ${id}) sebesar Rp${parseInt(nominal).toLocaleString('id-ID')} berhasil. ${res.data.message}`);
+        await tampilkanSaldo(msg.chat.id);
+    } catch (e) {
+        bot.sendMessage(msg.chat.id, '❌ Gagal mencatat pembayaran utang.');
+    }
+});
+
+bot.onText(/^terima piutang (\d+) (\d+)$/i, async (msg, match) => {
+    const [ , id, nominal ] = match;
+    const payload = { action: 'update_utang_piutang', tipe: 'terima piutang', id, nominal };
+    try {
+        const res = await axios.post(SPREADSHEET_API, payload);
+        bot.sendMessage(msg.chat.id, `✅ Penerimaan piutang (ID: ${id}) sebesar Rp${parseInt(nominal).toLocaleString('id-ID')} berhasil. ${res.data.message}`);
+        await tampilkanSaldo(msg.chat.id);
+    } catch (e) {
+        bot.sendMessage(msg.chat.id, '❌ Gagal mencatat penerimaan piutang.');
+    }
+});
+
+// --- Rekap Utang & Piutang ---
+bot.onText(/^rekap utang$/i, async (msg) => {
+    try {
+        const res = await axios.get(`${SPREADSHEET_API}?get=utang`);
+        const items = res.data.items;
+        let replyText = '📊 *Daftar Utang (Belum Lunas)*\n\n';
+        if (!items || items.length === 0) {
+            replyText += 'Tidak ada utang aktif.';
+        } else {
+            items.forEach(t => {
+                replyText += `*ID: ${t.id}* | Rp${t.sisa.toLocaleString('id-ID')} kepada *${t.pihak}*\n_${t.keterangan}_\n\n`;
+            });
+        }
+        bot.sendMessage(msg.chat.id, replyText, { parse_mode: 'Markdown' });
+    } catch (e) {
+        bot.sendMessage(msg.chat.id, '❌ Gagal mengambil rekap utang.');
+    }
+});
+
+bot.onText(/^rekap piutang$/i, async (msg) => {
+    try {
+        const res = await axios.get(`${SPREADSHEET_API}?get=piutang`);
+        const items = res.data.items;
+        let replyText = '📊 *Daftar Piutang (Belum Lunas)*\n\n';
+        if (!items || items.length === 0) {
+            replyText += 'Tidak ada piutang aktif.';
+        } else {
+            items.forEach(t => {
+                replyText += `*ID: ${t.id}* | Rp${t.sisa.toLocaleString('id-ID')} dari *${t.pihak}*\n_${t.keterangan}_\n\n`;
+            });
+        }
+        bot.sendMessage(msg.chat.id, replyText, { parse_mode: 'Markdown' });
+    } catch (e) {
+        bot.sendMessage(msg.chat.id, '❌ Gagal mengambil rekap piutang.');
+    }
+});
+
+// --- Kode Lama yang Disesuaikan ---
+// (masuk, keluar, tf, edit, hapus, rekap, saldo, dll)
+// ... (Salin sisa kode dari file Anda sebelumnya, mulai dari bot.onText(/^masuk... hingga akhir)
+// Atau gunakan kode di bawah ini yang sudah lengkap.
+
+bot.onText(/^\/lur$/, (msg) => {
+  bot.sendMessage(msg.chat.id, 'Wett! 👋');
+});
+
 bot.onText(/^masuk (\d+)\s+(.+)\s+(cash|bank|ewallet)$/i, (msg, match) => {
   const chatId = msg.chat.id;
   const [ , nominal, keterangan, sumber ] = match;
@@ -58,7 +194,6 @@ bot.onText(/^masuk (\d+)\s+(.+)\s+(cash|bank|ewallet)$/i, (msg, match) => {
   bot.sendMessage(chatId, '📸 Kirim foto struk jika ada, atau balas *tidak* bila tidak ada', { parse_mode: 'Markdown' });
 });
 
-// 🔹 Keluar
 bot.onText(/^keluar (\d+)\s+(.+)\s+(cash|bank|ewallet)$/i, (msg, match) => {
   const chatId = msg.chat.id;
   const [ , nominal, keterangan, sumber ] = match;
@@ -66,23 +201,20 @@ bot.onText(/^keluar (\d+)\s+(.+)\s+(cash|bank|ewallet)$/i, (msg, match) => {
   bot.sendMessage(chatId, '📸 Kirim foto struk jika ada, atau balas *tidak* bila tidak ada', { parse_mode: 'Markdown' });
 });
 
-// 🔸 Jika tidak ada foto (untuk 'masuk' atau 'keluar')
 bot.onText(/^tidak$/i, async msg => {
   const chatId = msg.chat.id;
   const data = pendingData[chatId];
   if (!data || data.action !== 'add') return;
   try {
-    await axios.post(SPREADSHEET_API, data);
+    await axios.post(SPREADSHEET_API, { ...data, action: 'add' });
     delete pendingData[chatId];
     bot.sendMessage(chatId, '✅ Transaksi berhasil dicatat.');
     await tampilkanSaldo(chatId);
   } catch (error) {
-    console.error('Gagal kirim data (tanpa foto):', error.message);
     bot.sendMessage(chatId, '❌ Gagal menyimpan data. Coba lagi.');
   }
 });
 
-// 🔸 Jika ada foto struk (untuk 'masuk' atau 'keluar')
 bot.on('photo', async msg => {
   const chatId = msg.chat.id;
   const data = pendingData[chatId];
@@ -90,100 +222,66 @@ bot.on('photo', async msg => {
   try {
     const fileId = msg.photo[msg.photo.length - 1].file_id;
     const fileUrl = await bot.getFileLink(fileId);
-    // Menambahkan link bukti ke data yang akan dikirim
-    await axios.post(SPREADSHEET_API, { ...data, bukti: fileUrl });
+    await axios.post(SPREADSHEET_API, { ...data, action: 'add', bukti: fileUrl });
     delete pendingData[chatId];
     bot.sendMessage(chatId, '✅ Transaksi dan struk berhasil dicatat.');
     await tampilkanSaldo(chatId);
   } catch (error) {
-    console.error('Gagal kirim data (dengan foto):', error.message);
     bot.sendMessage(chatId, '❌ Gagal menyimpan data. Coba lagi.');
   }
 });
 
-// 🔄 Transfer antar dompet
 bot.onText(/^tf (\d+)\s+(cash|bank|ewallet)\s+(cash|bank|ewallet)$/i, async (msg, match) => {
-  const chatId = msg.chat.id;
   const [ , nominal, sumber, tujuan ] = match;
-  const data = {
-    action: 'add', // Menandai aksi sebagai 'add'
-    tipe: 'transfer',
-    nominal,
-    keterangan: `Transfer dari ${sumber} ke ${tujuan}`,
-    sumber,
-    tujuan
-  };
+  const data = { action: 'add', tipe: 'transfer', nominal, keterangan: `Transfer dari ${sumber} ke ${tujuan}`, sumber, tujuan };
   try {
     await axios.post(SPREADSHEET_API, data);
-    bot.sendMessage(chatId, '🔁 Transfer antar dompet berhasil dicatat.');
-    await tampilkanSaldo(chatId);
+    bot.sendMessage(msg.chat.id, '🔁 Transfer antar dompet berhasil dicatat.');
+    await tampilkanSaldo(msg.chat.id);
   } catch (error) {
-    console.error('Gagal kirim data (transfer):', error.message);
-    bot.sendMessage(chatId, '❌ Gagal menyimpan data transfer. Coba lagi.');
+    bot.sendMessage(msg.chat.id, '❌ Gagal menyimpan data transfer.');
   }
 });
 
-// 🗑️ Hapus transaksi
 bot.onText(/^hapus (\d+)$/i, async (msg, match) => {
-    const chatId = msg.chat.id;
     const rowNumber = parseInt(match[1]);
     if (rowNumber < 3) {
-        bot.sendMessage(chatId, "❌ Nomor baris tidak valid. Harap mulai dari baris 3.");
+        bot.sendMessage(msg.chat.id, "❌ Nomor baris tidak valid. Harap mulai dari baris 3.");
         return;
     }
     try {
-        const payload = { action: 'delete', rowNumber: rowNumber };
-        await axios.post(SPREADSHEET_API, payload);
-        bot.sendMessage(chatId, `✅ Transaksi pada baris ${rowNumber} berhasil dihapus.`);
-        await tampilkanSaldo(chatId);
+        await axios.post(SPREADSHEET_API, { action: 'delete', rowNumber });
+        bot.sendMessage(msg.chat.id, `✅ Transaksi pada baris ${rowNumber} berhasil dihapus.`);
+        await tampilkanSaldo(msg.chat.id);
     } catch (error) {
-        console.error('Gagal hapus data:', error.message);
-        bot.sendMessage(chatId, `❌ Gagal menghapus data pada baris ${rowNumber}. Pastikan nomor baris benar.`);
+        bot.sendMessage(msg.chat.id, `❌ Gagal menghapus data. Pastikan nomor baris benar.`);
     }
 });
 
-// ✏️ Edit transaksi
 bot.onText(/^edit (\d+) (\d+) (.+) (cash|bank|ewallet)$/i, async (msg, match) => {
-    const chatId = msg.chat.id;
     const [ , rowNumber, nominal, keterangan, sumber ] = match;
     if (parseInt(rowNumber) < 3) {
-        bot.sendMessage(chatId, "❌ Nomor baris tidak valid. Harap mulai dari baris 3.");
+        bot.sendMessage(msg.chat.id, "❌ Nomor baris tidak valid.");
         return;
     }
     try {
-        const payload = {
-            action: 'edit',
-            rowNumber: parseInt(rowNumber),
-            nominal: parseInt(nominal),
-            keterangan: keterangan,
-            sumber: sumber
-        };
-        await axios.post(SPREADSHEET_API, payload);
-        bot.sendMessage(chatId, `✅ Transaksi pada baris ${rowNumber} berhasil diubah.`);
-        await tampilkanSaldo(chatId);
+        await axios.post(SPREADSHEET_API, { action: 'edit', rowNumber: parseInt(rowNumber), nominal: parseInt(nominal), keterangan, sumber });
+        bot.sendMessage(msg.chat.id, `✅ Transaksi pada baris ${rowNumber} berhasil diubah.`);
+        await tampilkanSaldo(msg.chat.id);
     } catch (error) {
-        console.error('Gagal edit data:', error.message);
-        bot.sendMessage(chatId, `❌ Gagal mengubah data pada baris ${rowNumber}. Pastikan format perintah dan nomor baris benar.`);
+        bot.sendMessage(msg.chat.id, `❌ Gagal mengubah data. Pastikan format benar.`);
     }
 });
 
-// 📊 Rekap transaksi (menampilkan daftar)
 bot.onText(/^rekap(?:\s+(cash|bank|ewallet))?$/i, async (msg, match) => {
-  const chatId = msg.chat.id;
   const sumber = match[1];
+  if (match[0] === 'rekap utang' || match[0] === 'rekap piutang') return; // Hindari tumpang tindih
   try {
     let url = SPREADSHEET_API;
-    if (sumber) {
-      url += `?sumber=${sumber}`;
-    }
+    if (sumber) url += `?sumber=${sumber}`;
     const res = await axios.get(url);
     const transactions = res.data.transactions;
-    let replyText = '';
-    if (sumber) {
-        replyText = `📊 *Daftar Transaksi Sumber: ${sumber.toUpperCase()}*\n\n`;
-    } else {
-        replyText = `📊 *Daftar Semua Transaksi*\n\n`;
-    }
+    let replyText = sumber ? `📊 *Daftar Transaksi Sumber: ${sumber.toUpperCase()}*\n\n` : `📊 *Daftar Semua Transaksi*\n\n`;
     if (!transactions || transactions.length === 0) {
         replyText += 'Tidak ada transaksi ditemukan.';
     } else {
@@ -194,19 +292,16 @@ bot.onText(/^rekap(?:\s+(cash|bank|ewallet))?$/i, async (msg, match) => {
             replyText += `*${t.row}.* ${icon} *Rp${nominalFormatted}* - ${t.keterangan} (${t.sumber})${linkBukti}\n`;
         });
     }
-    bot.sendMessage(chatId, replyText, { parse_mode: 'Markdown' });
+    bot.sendMessage(msg.chat.id, replyText, { parse_mode: 'Markdown' });
   } catch (e) {
-    console.error('Gagal ambil rekap:', e.message);
-    bot.sendMessage(chatId, '❌ Gagal mengambil data rekap.');
+    bot.sendMessage(msg.chat.id, '❌ Gagal mengambil data rekap.');
   }
 });
 
-// 💰 Saldo total & per sumber
 bot.onText(/^saldo$/i, async (msg) => {
   await tampilkanSaldo(msg.chat.id);
 });
 
-// 🔧 Fungsi tampilkan saldo (dipakai berulang)
 async function tampilkanSaldo(chatId) {
   try {
     const res = await axios.get(SPREADSHEET_API);
@@ -223,9 +318,8 @@ async function tampilkanSaldo(chatId) {
       { parse_mode: 'Markdown' }
     );
   } catch (e) {
-    console.error('Gagal ambil saldo:', e.message);
     bot.sendMessage(chatId, '❌ Gagal mengambil saldo terkini.');
   }
 }
 
-console.log('Bot catatan keuangan berhasil dijalankan...');
+console.log('Bot catatan keuangan dengan pengingat berhasil dijalankan...');
