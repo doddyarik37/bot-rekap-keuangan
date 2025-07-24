@@ -64,7 +64,7 @@ bot.onText(/^\/?perintah$/, (msg) => {
 
 *Pengingat:*
 • \`/ingatkansaya\` - Mengaktifkan pengingat harian jam 9 malam.
-• \`/hentikaningatan\` - Menonaktifkan pengingat.
+• \`/hentikaningatkan\` - Menonaktifkan pengingat.
 
 *Lainnya:*
 • \`/lur\` - Memastikan bot aktif.
@@ -83,7 +83,7 @@ bot.onText(/^\/ingatkansaya$/, async (msg) => {
     }
 });
 
-bot.onText(/^\/hentikaningatan$/, async (msg) => {
+bot.onText(/^\/hentikaningatkan$/, async (msg) => {
     try {
         await axios.post(SPREADSHEET_API, { action: 'manage_reminder', chatId: msg.chat.id, subscribe: false });
         bot.sendMessage(msg.chat.id, '✅ Siap! Pengingat harian telah dinonaktifkan.');
