@@ -38,15 +38,15 @@ bot.onText(/^\/?perintah$/, (msg) => {
 *Daftar Perintah Bot Keuangan*
 
 *Pencatatan Dasar:*
-• \`masuk [nominal] [ket] [sumber]\`
-• \`keluar [nominal] [ket] [sumber]\`
+• \`masuk [nominal] [keterangan] [sumber]\`
+• \`keluar [nominal] [keterangan] [sumber]\`
 • \`tf [nominal] [dari] [ke]\`
 
 *Utang & Piutang:*
-• \`utang [nominal] [dari siapa] [ket]\`
-  _(Uang masuk ke 'cash' secara default)_
-• \`piutang [nominal] [ke siapa] [ket]\`
-  _(Uang keluar dari 'cash' secara default)_
+• \`utang [nominal] [keterangan] [dari_siapa]\`
+  _(Nama orang harus 1 kata, tanpa spasi)_
+• \`piutang [nominal] [keterangan] [ke_siapa]\`
+  _(Nama orang harus 1 kata, tanpa spasi)_
 • \`bayar utang [ID] [nominal]\`
 • \`terima piutang [ID] [nominal]\`
 
@@ -64,11 +64,10 @@ bot.onText(/^\/?perintah$/, (msg) => {
 
 *Pengingat:*
 • \`/ingatkansaya\` - Mengaktifkan pengingat harian jam 9 malam.
-• \`/hentikaningatkan\` - Menonaktifkan pengingat.
+• \`/hentikaningatan\` - Menonaktifkan pengingat.
 
 *Lainnya:*
 • \`/lur\` - Memastikan bot aktif.
-• \`/perintah\` - Daftar perintah bot keuangan.
     `;
     bot.sendMessage(chatId, helpText, { parse_mode: 'Markdown' });
 });
@@ -83,7 +82,7 @@ bot.onText(/^\/ingatkansaya$/, async (msg) => {
     }
 });
 
-bot.onText(/^\/hentikaningatkan$/, async (msg) => {
+bot.onText(/^\/hentikaningatan$/, async (msg) => {
     try {
         await axios.post(SPREADSHEET_API, { action: 'manage_reminder', chatId: msg.chat.id, subscribe: false });
         bot.sendMessage(msg.chat.id, '✅ Siap! Pengingat harian telah dinonaktifkan.');
@@ -94,29 +93,34 @@ bot.onText(/^\/hentikaningatkan$/, async (msg) => {
 
 
 // --- Perintah Utang & Piutang ---
-bot.onText(/^utang (\d+) (.+) (.+)$/i, async (msg, match) => {
-    const [ , nominal, pihak, keterangan ] = match;
+// REVISI: Mengubah format perintah menjadi [nominal] [keterangan] [pihak]
+bot.onText(/^utang (\d+) (.+) (\S+)$/i, async (msg, match) => {
+    const [ , nominal, keterangan, pihak ] = match;
     const payload = { action: 'add_utang_piutang', tipe: 'Utang', nominal, pihak, keterangan };
     try {
         await axios.post(SPREADSHEET_API, payload);
         bot.sendMessage(msg.chat.id, `✅ Utang baru dari *${pihak}* sebesar Rp${parseInt(nominal).toLocaleString('id-ID')} berhasil dicatat. Saldo 'cash' bertambah.`);
         await tampilkanSaldo(msg.chat.id);
     } catch (e) {
-        bot.sendMessage(msg.chat.id, '❌ Gagal mencatat utang.');
+        console.error("Error saat mencatat utang:", e.message);
+        bot.sendMessage(msg.chat.id, '❌ Gagal mencatat utang. Pastikan format benar.');
     }
 });
 
-bot.onText(/^piutang (\d+) (.+) (.+)$/i, async (msg, match) => {
-    const [ , nominal, pihak, keterangan ] = match;
+// REVISI: Mengubah format perintah menjadi [nominal] [keterangan] [pihak]
+bot.onText(/^piutang (\d+) (.+) (\S+)$/i, async (msg, match) => {
+    const [ , nominal, keterangan, pihak ] = match;
     const payload = { action: 'add_utang_piutang', tipe: 'Piutang', nominal, pihak, keterangan };
     try {
         await axios.post(SPREADSHEET_API, payload);
         bot.sendMessage(msg.chat.id, `✅ Piutang baru kepada *${pihak}* sebesar Rp${parseInt(nominal).toLocaleString('id-ID')} berhasil dicatat. Saldo 'cash' berkurang.`);
         await tampilkanSaldo(msg.chat.id);
     } catch (e) {
-        bot.sendMessage(msg.chat.id, '❌ Gagal mencatat piutang.');
+        console.error("Error saat mencatat piutang:", e.message);
+        bot.sendMessage(msg.chat.id, '❌ Gagal mencatat piutang. Pastikan format benar.');
     }
 });
+
 
 bot.onText(/^bayar utang (\d+) (\d+)$/i, async (msg, match) => {
     const [ , id, nominal ] = match;
@@ -180,10 +184,6 @@ bot.onText(/^rekap piutang$/i, async (msg) => {
 });
 
 // --- Kode Lama yang Disesuaikan ---
-// (masuk, keluar, tf, edit, hapus, rekap, saldo, dll)
-// ... (Salin sisa kode dari file Anda sebelumnya, mulai dari bot.onText(/^masuk... hingga akhir)
-// Atau gunakan kode di bawah ini yang sudah lengkap.
-
 bot.onText(/^\/lur$/, (msg) => {
   bot.sendMessage(msg.chat.id, 'Wett! 👋');
 });
